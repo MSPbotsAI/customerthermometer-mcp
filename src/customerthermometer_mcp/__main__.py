@@ -11,9 +11,9 @@ def _build_http_app(mcp, settings):
     from starlette.routing import Mount, Route
 
     async def health(_: Request) -> JSONResponse:
-        return JSONResponse(
-            {"status": "ok", "service": "customerthermometer-mcp", "transport": "http"}
-        )
+        # Must be exactly {"status": "ok"} — a pure local liveness probe, no
+        # extra fields, and must not depend on the upstream API's health.
+        return JSONResponse({"status": "ok"})
 
     mcp_app = mcp.streamable_http_app()  # Starlette app owning the session-manager lifespan
     mounted = GatewayTokenMiddleware(mcp_app, settings)

@@ -1,48 +1,39 @@
 from collections.abc import Callable
+from typing import Annotated
 
 from mcp.server.fastmcp import FastMCP
+from mcp.types import ToolAnnotations
+from pydantic import Field
 
+from .._json import dump_json_capped
 from ..api_client import CustomerThermometerClient, CustomerThermometerError
 from ._common import NO_TOKEN
 
 
 def register(mcp: FastMCP, client_factory: Callable[[], CustomerThermometerClient | None]) -> None:
 
-    @mcp.tool()
+    @mcp.tool(
+        annotations=ToolAnnotations(readOnlyHint=False, destructiveHint=False, idempotentHint=False)
+    )
     async def customerthermometer_send_email(
-        thermometer_id: int,
-        list_id: int,
-        email_address: str,
-        blast_id: int | None = None,
-        first_name: str | None = None,
-        last_name: str | None = None,
-        company_name: str | None = None,
-        custom1: str | None = None,
-        custom2: str | None = None,
-        custom3: str | None = None,
+        thermometer_id: Annotated[int, Field(description="ID of the prebuilt Thermometer to send.")],
+        list_id: Annotated[
+            int, Field(description="Recipient List ID to add the email address to.")
+        ],
+        email_address: Annotated[str, Field(description="Recipient's email address.")],
+        blast_id: Annotated[
+            int | None, Field(description="Blast ID to log this send/response against.")
+        ] = None,
+        first_name: Annotated[str | None, Field(description="Recipient's first name.")] = None,
+        last_name: Annotated[str | None, Field(description="Recipient's last name.")] = None,
+        company_name: Annotated[str | None, Field(description="Recipient's company name.")] = None,
+        custom1: Annotated[str | None, Field(description="Custom data field 1.")] = None,
+        custom2: Annotated[str | None, Field(description="Custom data field 2.")] = None,
+        custom3: Annotated[str | None, Field(description="Custom data field 3.")] = None,
     ) -> str:
-        """Send a single Email Thermometer survey to one recipient.
+        """Send one Email Thermometer survey to a recipient, creating the list/blast if needed.
 
-        API: GET api.php?getMethod=sendEmail
-
-        Adds the recipient to the given list (creating it if needed), and
-        sends the given prebuilt Thermometer. If blast_id is omitted, a new
-        blast (of just this one person) is created and its ID returned.
-
-        Args:
-            thermometer_id: Required. ID of the prebuilt Thermometer to send.
-            list_id: Required. Recipient List ID to add the email address to.
-            email_address: Required. Recipient's email address.
-            blast_id: Optional. Blast ID to log sends/responses against.
-            first_name: Optional. Recipient's first name.
-            last_name: Optional. Recipient's last name.
-            company_name: Optional. Recipient's company name.
-            custom1: Optional. Custom data field 1.
-            custom2: Optional. Custom data field 2.
-            custom3: Optional. Custom data field 3.
-
-        Returns an integer: the Blast ID on success, or 0 if the account
-        cannot send any more emails.
+        Returns the Blast ID on success, or 0 if the account has no send credits left.
         """
         client = client_factory()
         if client is None:
@@ -60,47 +51,46 @@ def register(mcp: FastMCP, client_factory: Callable[[], CustomerThermometerClien
             "custom3": custom3,
         }
         try:
-            return await client.get("sendEmail", params=params)
+            result = await client.get("sendEmail", params=params)
+            return dump_json_capped(result)
         except CustomerThermometerError as e:
-            return f"Error: {e}"
+            return e.to_envelope()
 
-    @mcp.tool()
+    @mcp.tool(
+        annotations=ToolAnnotations(readOnlyHint=False, destructiveHint=False, idempotentHint=False)
+    )
     async def customerthermometer_log_response(
-        recipient: str,
-        temperature_id: int,
-        thermometer_id: int,
-        blast_id: int | None = None,
-        nps_rating: int | None = None,
-        iso_country: str | None = None,
-        response_date: str | None = None,
-        comment: str | None = None,
-        user_agent: str | None = None,
-        email_notification_flag: bool | None = None,
-        webhook_notification_flag: bool | None = None,
-        first_name: str | None = None,
-        last_name: str | None = None,
-        company_name: str | None = None,
+        recipient: Annotated[str, Field(description="Recipient's email address.")],
+        temperature_id: Annotated[int, Field(description="Rating: 1, 2, 3, or 4.")],
+        thermometer_id: Annotated[int, Field(description="The Thermometer ID this response is for.")],
+        blast_id: Annotated[
+            int | None, Field(description="Blast ID to log this response against.")
+        ] = None,
+        nps_rating: Annotated[int | None, Field(description="NPS rating, 0-10.")] = None,
+        iso_country: Annotated[
+            str | None, Field(description='Two-letter country code, e.g. "GB".')
+        ] = None,
+        response_date: Annotated[
+            str | None, Field(description='Response timestamp, "YYYY-MM-DD HH:MM:SS".')
+        ] = None,
+        comment: Annotated[str | None, Field(description="Free-text comment.")] = None,
+        user_agent: Annotated[
+            str | None, Field(description="Recipient's browser user-agent string.")
+        ] = None,
+        email_notification_flag: Annotated[
+            bool | None, Field(description="Whether to trigger email notifications.")
+        ] = None,
+        webhook_notification_flag: Annotated[
+            bool | None, Field(description="Whether to trigger webhook notifications.")
+        ] = None,
+        first_name: Annotated[str | None, Field(description="Recipient's first name.")] = None,
+        last_name: Annotated[str | None, Field(description="Recipient's last name.")] = None,
+        company_name: Annotated[str | None, Field(description="Recipient's company name.")] = None,
     ) -> str:
-        """Manually log a Thermometer response (immediately registers it in
-        reporting and can trigger email/webhook notifications).
+        """Manually record a Thermometer response.
 
-        API: POST api.php?getMethod=logResponse
-
-        Args:
-            recipient: Required. Recipient's email address.
-            temperature_id: Required. Rating: 1, 2, 3, or 4.
-            thermometer_id: Required. The Thermometer ID this response is for.
-            blast_id: Optional. Blast ID to log this response against.
-            nps_rating: Optional. NPS rating, 0-10.
-            iso_country: Optional. Two-letter country code, e.g. "GB".
-            response_date: Optional. "YYYY-MM-DD HH:MM:SS".
-            comment: Optional. Free-text comment.
-            user_agent: Optional. Recipient's browser user-agent string.
-            email_notification_flag: Optional. Trigger email notifications.
-            webhook_notification_flag: Optional. Trigger webhook notifications.
-            first_name: Optional. Recipient's first name.
-            last_name: Optional. Recipient's last name.
-            company_name: Optional. Recipient's company name.
+        It appears immediately in reporting and can trigger email/webhook
+        notifications, same as a real recipient response would.
         """
         client = client_factory()
         if client is None:
@@ -122,28 +112,22 @@ def register(mcp: FastMCP, client_factory: Callable[[], CustomerThermometerClien
             "companyName": company_name,
         }
         try:
-            return await client.post("logResponse", body=body)
+            result = await client.post("logResponse", body=body)
+            return dump_json_capped(result)
         except CustomerThermometerError as e:
-            return f"Error: {e}"
+            return e.to_envelope()
 
-    @mcp.tool()
+    @mcp.tool(
+        annotations=ToolAnnotations(readOnlyHint=False, destructiveHint=False, idempotentHint=False)
+    )
     async def customerthermometer_add_recipient_to_list(
-        email_address: str,
-        list_id: int,
-        first_name: str | None = None,
-        last_name: str | None = None,
-        company_name: str | None = None,
+        email_address: Annotated[str, Field(description="Recipient's email address.")],
+        list_id: Annotated[int, Field(description="The existing List ID to add the recipient to.")],
+        first_name: Annotated[str | None, Field(description="Recipient's first name.")] = None,
+        last_name: Annotated[str | None, Field(description="Recipient's last name.")] = None,
+        company_name: Annotated[str | None, Field(description="Recipient's company name.")] = None,
     ) -> str:
         """Add a recipient to an existing recipient list.
-
-        API: POST api.php?getMethod=addRecipientToList
-
-        Args:
-            email_address: Required. Recipient's email address.
-            list_id: Required. The existing List ID to add the recipient to.
-            first_name: Optional. Recipient's first name.
-            last_name: Optional. Recipient's last name.
-            company_name: Optional. Recipient's company name.
 
         Returns the email address on success.
         """
@@ -158,47 +142,49 @@ def register(mcp: FastMCP, client_factory: Callable[[], CustomerThermometerClien
             "companyName": company_name,
         }
         try:
-            return await client.post("addRecipientToList", body=body)
+            result = await client.post("addRecipientToList", body=body)
+            return dump_json_capped(result)
         except CustomerThermometerError as e:
-            return f"Error: {e}"
+            return e.to_envelope()
 
-    @mcp.tool()
-    async def customerthermometer_delete_response(response_id: int) -> str:
-        """Delete a single response from reporting.
+    @mcp.tool(
+        annotations=ToolAnnotations(readOnlyHint=False, destructiveHint=True, idempotentHint=True)
+    )
+    async def customerthermometer_delete_response(
+        response_id: Annotated[int, Field(description="ID of the response to delete.")],
+    ) -> str:
+        """Delete one response from reporting.
 
-        API: GET api.php?getMethod=deleteResponse
-
-        ⚠ The response moves to a bin and is permanently cleared after 30 days.
-
-        Args:
-            response_id: Required. ID of the response to delete.
+        The response moves to a bin and is permanently cleared after 30 days.
         """
         client = client_factory()
         if client is None:
             return NO_TOKEN
         try:
-            return await client.get("deleteResponse", params={"responseID": response_id})
+            result = await client.get("deleteResponse", params={"responseID": response_id})
+            return dump_json_capped(result)
         except CustomerThermometerError as e:
-            return f"Error: {e}"
+            return e.to_envelope()
 
-    @mcp.tool()
+    @mcp.tool(
+        annotations=ToolAnnotations(readOnlyHint=False, destructiveHint=False, idempotentHint=True)
+    )
     async def customerthermometer_unsubscribe_recipient(
-        email_address: str, notify: bool | None = None
+        email_address: Annotated[str, Field(description="Email address to unsubscribe.")],
+        notify: Annotated[
+            bool | None, Field(description="Whether to send an unsubscribe notification.")
+        ] = None,
     ) -> str:
-        """Add an email address to the unsubscribe list (blocks future
-        Email Thermometer blasts to this address).
+        """Add an email address to the account's unsubscribe list.
 
-        API: POST api.php?getMethod=unsubscribeRecipient
-
-        Args:
-            email_address: Required. Email address to unsubscribe.
-            notify: Optional. Whether to send an unsubscribe notification.
+        Blocks future Email Thermometer sends to this address.
         """
         client = client_factory()
         if client is None:
             return NO_TOKEN
         body = {"emailAddress": email_address, "notify": notify}
         try:
-            return await client.post("unsubscribeRecipient", body=body)
+            result = await client.post("unsubscribeRecipient", body=body)
+            return dump_json_capped(result)
         except CustomerThermometerError as e:
-            return f"Error: {e}"
+            return e.to_envelope()

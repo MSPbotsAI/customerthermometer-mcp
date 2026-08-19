@@ -85,6 +85,29 @@ def create_mcp_server(settings: Settings) -> FastMCP:
     # correctly behind a reverse proxy or docker network.
     mcp = FastMCP(
         name="customerthermometer-mcp",
+        instructions=(
+            "Customer Thermometer is an email-based CSAT/NPS survey platform: MSPs "
+            'send 4-point "thermometer" emoji surveys (gold/green/yellow/red) or NPS '
+            "surveys to customers and track responses. Core concepts: a Thermometer "
+            "(survey template), a Blast (one send of a Thermometer to a recipient "
+            "list), a Recipient List (contacts), and a Response (one rating + "
+            "optional comment). Reporting tools: customerthermometer_get_thermometers "
+            "and customerthermometer_get_recipient_lists look up template/list IDs; "
+            "customerthermometer_get_send_quota checks remaining send credits; the "
+            "metric tools (get_happiness_value, get_nps_value, get_temp_rating_value, "
+            "get_response_rate_value, get_num_responses_value) return a single "
+            "account-wide or blast-scoped score; get_blast_results and get_comments "
+            "return the underlying response/comment records. All reporting tools "
+            "accept an optional blast_id and/or date range to scope results. Action "
+            "tools: customerthermometer_send_email sends a survey to one recipient; "
+            "customerthermometer_add_recipient_to_list adds a contact to a list; "
+            "customerthermometer_log_response manually records a response; "
+            "customerthermometer_unsubscribe_recipient blocks future sends to an "
+            "address; customerthermometer_delete_response removes one response "
+            "(30-day recovery window). Typical flow: look up a thermometer/list ID, "
+            "send or check quota, then use the metric/detail tools scoped to that "
+            "blast_id to review results."
+        ),
         transport_security=TransportSecuritySettings(enable_dns_rebinding_protection=False),
     )
 

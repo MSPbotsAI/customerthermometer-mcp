@@ -67,31 +67,45 @@ via the `X-CustomerThermometer-Api-Url` header, never a fixed default.)
 ## MCP Endpoint
 
 - `POST /mcp` — MCP protocol (streamable HTTP transport)
-- `GET /health` — health check, returns `{"status": "ok", "service": "customerthermometer-mcp", "transport": "http"}`
+- `GET /health` — health check, returns exactly `{"status": "ok"}` (a pure
+  local liveness probe — it never calls out to the Customer Thermometer API,
+  so it cannot reflect upstream availability; run a real `tools/call` to
+  verify the MCP path itself)
 
 ## Tool List
 
-Responses are **not JSON** — the vendor returns XML documents (list/report
-methods) or plain integers/strings, so tools return the raw response text
-as-is rather than a parsed/re-serialized object.
+**15 tools** (10 read-only, 5 write). Every tool result is a JSON-serialized
+string per the SOP: the vendor's own payload — an XML document, or a plain
+integer/string — is JSON-encoded as-is (so, for example, an XML report comes
+back as a quoted JSON string containing that XML) rather than re-parsed into
+a different shape. Errors use the SOP's fixed envelope
+`{"error": {"code", "message", "retryable"}}` instead of ad-hoc strings.
 
-| Tool | 功能 | 参数 | 返回格式 |
+| Tool | Read/Write | 功能 | 参数 |
 |---|---|---|---|
-| `customerthermometer_get_thermometers` | 列出所有 Thermometer 名称和 ID | 无 | XML |
-| `customerthermometer_get_recipient_lists` | 列出所有收件人 List 名称和 ID | 无 | XML |
-| `customerthermometer_get_send_quota` | 获取剩余可发送额度 | 无 | Integer |
-| `customerthermometer_get_happiness_value` | 获取 Happiness Factor（%） | `limit`, `blast_id`, `from_date`, `to_date`（均可选） | Integer |
-| `customerthermometer_get_nps_value` | 获取 NPS 分数 | `limit`, `blast_id`, `from_date`, `to_date`（均可选） | Integer |
-| `customerthermometer_get_temp_rating_value` | 获取 Temperature Rating（%） | `limit`, `blast_id`, `from_date`, `to_date`（均可选） | Integer |
-| `customerthermometer_get_response_rate_value` | 获取回复率（%） | `limit`, `blast_id`, `from_date`, `to_date`（均可选） | Integer |
-| `customerthermometer_get_num_responses_value` | 获取回复数量 | `temperature_id`, `limit`, `blast_id`, `from_date`, `to_date`（均可选） | Integer |
-| `customerthermometer_get_blast_results` | 获取详细回复结果 | `temperature_id`, `limit`, `blast_id`, `from_date`, `to_date`（均可选） | XML |
-| `customerthermometer_get_comments` | 获取回复评论 | `temperature_id`, `limit`, `blast_id`, `from_date`, `to_date`（均可选） | XML |
-| `customerthermometer_send_email` | 发送单封 Email Thermometer 调查 | `thermometer_id`(必填), `list_id`(必填), `email_address`(必填), `blast_id`/`first_name`/`last_name`/`company_name`/`custom1-3`（可选） | Integer |
-| `customerthermometer_log_response` | 手动登记一条回复 | `recipient`/`temperature_id`/`thermometer_id`(必填), 其余均可选 | — |
-| `customerthermometer_add_recipient_to_list` | 添加收件人到 List | `email_address`/`list_id`(必填), `first_name`/`last_name`/`company_name`（可选） | String |
-| `customerthermometer_delete_response` | ⚠ 删除一条回复（30 天后彻底清除） | `response_id`(必填) | Integer |
-| `customerthermometer_unsubscribe_recipient` | 将邮箱加入退订名单 | `email_address`(必填), `notify`（可选） | String |
+| `customerthermometer_get_thermometers` | readOnly | 列出所有 Thermometer 名称和 ID | 无 |
+| `customerthermometer_get_recipient_lists` | readOnly | 列出所有收件人 List 名称和 ID | 无 |
+| `customerthermometer_get_send_quota` | readOnly | 获取剩余可发送额度 | 无 |
+| `customerthermometer_get_happiness_value` | readOnly | 获取 Happiness Factor（%） | `limit`, `blast_id`, `from_date`, `to_date`（均可选） |
+| `customerthermometer_get_nps_value` | readOnly | 获取 NPS 分数 | `limit`, `blast_id`, `from_date`, `to_date`（均可选） |
+| `customerthermometer_get_temp_rating_value` | readOnly | 获取 Temperature Rating（%） | `limit`, `blast_id`, `from_date`, `to_date`（均可选） |
+| `customerthermometer_get_response_rate_value` | readOnly | 获取回复率（%） | `limit`, `blast_id`, `from_date`, `to_date`（均可选） |
+| `customerthermometer_get_num_responses_value` | readOnly | 获取回复数量 | `temperature_id`, `limit`, `blast_id`, `from_date`, `to_date`（均可选） |
+| `customerthermometer_get_blast_results` | readOnly | 获取详细回复结果 | `temperature_id`, `limit`, `blast_id`, `from_date`, `to_date`（均可选） |
+| `customerthermometer_get_comments` | readOnly | 获取回复评论 | `temperature_id`, `limit`, `blast_id`, `from_date`, `to_date`（均可选） |
+| `customerthermometer_send_email` | write | 发送单封 Email Thermometer 调查 | `thermometer_id`(必填), `list_id`(必填), `email_address`(必填), `blast_id`/`first_name`/`last_name`/`company_name`/`custom1-3`（可选） |
+| `customerthermometer_log_response` | write | 手动登记一条回复 | `recipient`/`temperature_id`/`thermometer_id`(必填), 其余均可选 |
+| `customerthermometer_add_recipient_to_list` | write | 添加收件人到 List | `email_address`/`list_id`(必填), `first_name`/`last_name`/`company_name`（可选） |
+| `customerthermometer_delete_response` | write, ⚠ destructive | 删除一条回复（30 天后彻底清除） | `response_id`(必填) |
+| `customerthermometer_unsubscribe_recipient` | write | 将邮箱加入退订名单 | `email_address`(必填), `notify`（可选） |
+
+All 7 tools that accept `limit` (`get_happiness_value`, `get_nps_value`,
+`get_temp_rating_value`, `get_response_rate_value`,
+`get_num_responses_value`, `get_blast_results`, `get_comments`) clamp it to
+**200 server-side**. The vendor does **not** document a hard maximum of its
+own — a vendor support-doc example shows `&limit=100000` being accepted — so
+this 200 cap is this server's own SOP-mandated ceiling (protecting the
+agent's context budget), not a vendor-imposed limit.
 
 ## 测试示例
 
@@ -150,3 +164,6 @@ this running server with a real API key and returned real account data
   individually smoke-tested — several (`send_email`, `log_response`, etc.)
   are write operations that would create/modify real survey data, so they
   weren't exercised against the live test account.
+- No vendor-documented hard cap exists for `limit` (see the Tool List
+  section above) — the 200-record ceiling enforced by this server is our
+  own SOP-driven safeguard, not something the vendor requires.
